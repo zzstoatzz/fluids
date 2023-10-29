@@ -26,18 +26,15 @@ func NewWindow() (*sdl.Renderer, *sdl.Window, error) {
 	return renderer, window, nil
 }
 
-// Helper function to draw a circle
 func drawCircle(renderer *sdl.Renderer, centerX, centerY, radius int32) {
-	for w := -radius; w < radius; w++ {
-		for h := -radius; h < radius; h++ {
-			if w*w+h*h <= radius*radius {
-				renderer.DrawPoint(centerX+w, centerY+h)
-			}
-		}
+	for theta := 0.0; theta < 2*math.Pi; theta += 0.01 {
+		x := centerX + int32(math.Cos(theta)*float64(radius))
+		y := centerY + int32(math.Sin(theta)*float64(radius))
+		renderer.DrawPoint(x, y)
 	}
 }
 
-// RenderFrame renders a single frame
+// renders a single frame
 func RenderFrame(
 	renderer *sdl.Renderer,
 	particles []core.Particle,
@@ -49,10 +46,6 @@ func RenderFrame(
 	// Clear the screen
 	renderer.SetDrawColor(0, 0, 0, 255)
 	renderer.Clear()
-
-	// Draw bounding box
-	renderer.SetDrawColor(255, 255, 255, 255)
-	renderer.DrawRect(&sdl.Rect{X: 0, Y: 0, W: windowWidth, H: windowHeight})
 
 	// Define scaling factors based on window size and domain size
 	scaleX := float32(windowWidth) / float32(domain.X)

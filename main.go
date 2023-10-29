@@ -23,7 +23,6 @@ func RunSimulation(
 
 	fluidSim := simulation.NewFluidSim(n, dt, domain.X, domain.Y, rho0, nu)
 
-	// Initialize the visualization
 	renderer, window, err := viz.NewWindow()
 	if err != nil {
 		panic(err)
@@ -34,6 +33,9 @@ func RunSimulation(
 	var mouseX, mouseY int32
 	running := true
 
+	originalGravity := gravity
+	defaultGravity := -9.81 // Default gravity value
+
 	for running {
 		// handle SDL Events
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
@@ -42,18 +44,37 @@ func RunSimulation(
 				running = false
 			case *sdl.MouseMotionEvent:
 				mouseX, mouseY = e.X, e.Y
+			case *sdl.KeyboardEvent:
+				if e.Type == sdl.KEYDOWN {
+					switch e.Keysym.Sym {
+					case sdl.K_g: // 'g' key to toggle gravity
+						if gravity != 0 {
+							gravity = 0
+						} else {
+							if originalGravity == 0 {
+								gravity = defaultGravity
+							} else {
+								gravity = originalGravity
+							}
+						}
+					}
+				}
 			case *sdl.MouseButtonEvent:
-				if e.Type == sdl.MOUSEBUTTONDOWN && e.Button == sdl.BUTTON_LEFT {
-					input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight)
+				if e.Type == sdl.MOUSEBUTTONDOWN {
+					if e.Button == sdl.BUTTON_LEFT {
+						input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight)
+					}
 				}
 			}
 		}
-
 		fluidSim.Step(gravity)
 		viz.RenderFrame(
 			renderer, fluidSim.Particles, fluidSim.Domain, windowWidth, windowHeight, speed_scale, particleRadius,
 		)
-		time.Sleep(time.Duration(1000/frameRate) * time.Millisecond)
+
+		// we interpret frameRate as frames per second
+		// so we need to sleep for 1/frameRate seconds
+		time.Sleep(time.Duration(1e9 / frameRate))
 	}
 }
 
@@ -75,10 +96,10 @@ func main() {
 	flag.Float64Var(&particleRadius, "radius", 1.0, "Particle radius")
 	flag.Float64Var(&dt, "dt", 0.001, "Time step")
 	flag.Float64Var(&rho0, "rho0", 1.0, "Reference density")
-	flag.Float64Var(&nu, "nu", 1.0, "Viscosity")
+	flag.Float64Var(&nu, "nu", 10.0, "Viscosity")
 	flag.Float64Var(&domainX, "domainX", 100.0, "Domain X size")
 	flag.Float64Var(&domainY, "domainY", 100.0, "Domain Y size")
-	flag.Float64Var(&domainY, "speedScale", 1.0, "Speed scale")
+	flag.Float64Var(&domainY, "speedScale", 3.8, "Speed scale")
 	flag.Int64Var(&frameRate, "fps", 120, "Frame rate")
 	flag.Float64Var(&gravity, "g", -9.81, "Gravity")
 

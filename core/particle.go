@@ -1,5 +1,7 @@
 package core
 
+import "math"
+
 type Vector struct {
 	X, Y float64
 }
@@ -11,4 +13,10 @@ type Particle struct {
 	Pressure  float64
 	Force     Vector // Force
 	Neighbors []Particle
+}
+
+func CalculateDistance(p1, p2 Particle) float64 {
+	dx := p1.X - p2.X
+	dy := p1.Y - p2.Y
+	return math.Sqrt(dx*dx + dy*dy)
 }

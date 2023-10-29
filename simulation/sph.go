@@ -1,24 +1,16 @@
 package simulation
 
-// TODO: Implement placeholder functions
-// func (sim *FluidSim) FindNeighbors(p Particle) []Particle {}
-// func (sim *FluidSim) CalculateDensity(p Particle) float64 {}
-// func (sim *FluidSim) CalculatePressure(density float64) float64 {}
-// func (sim *FluidSim) CalculatePressureForce(p Particle) Vector {}
-// func (sim *FluidSim) CalculateViscosityForce(p Particle) Vector {}
-// func (sim *FluidSim) CalculateGravityForce(p Particle) Vector {}
-
 import (
 	"fluids/core"
 	"fluids/spatial"
-	"math"
 	"math/rand"
 )
 
 const K = 1000.0
 const DAMPENING_FACTOR = 0.5
-const NEIGHBOR_RADIUS = 5.0
+const NEIGHBOR_RADIUS = 10.0
 const Gravity = -9.81 // Acceleration due to gravity in m/s^2
+const PressureMultiplier = 1.0
 
 type InitialConditionFunc func(i, n int) (x, y, vx, vy float64)
 
@@ -37,18 +29,6 @@ type FluidSim struct {
 	Rho0, Nu  float64 // Reference density and viscosity
 	Domain    Domain  // Domain of the simulation
 	Grid      *spatial.Grid
-}
-
-func SmoothingKernel(radius, distance float64) float64 {
-	// thank you mr. sebastian lague - https://www.youtube.com/watch?v=rSKMYc1CQHE
-	value := math.Max(0, radius-distance)
-	return value * value * value
-}
-
-func calculateDistance(p1, p2 core.Particle) float64 {
-	dx := p1.X - p2.X
-	dy := p1.Y - p2.Y
-	return math.Sqrt(dx*dx + dy*dy)
 }
 
 func RandomInitialCondition(i, n int) (float64, float64, float64, float64) {
@@ -79,28 +59,30 @@ func NewFluidSim(n int, dt, domainX, domainY, rho0, nu float64) *FluidSim {
 	}
 }
 
-func (sim *FluidSim) CalculatePressureForce(p *core.Particle) core.Vector {
+func (sim *FluidSim) CalculatePressureForce(p core.Particle) core.Vector {
 	var force core.Vector
 	for _, neighbor := range p.Neighbors {
 		dx := neighbor.X - p.X
 		dy := neighbor.Y - p.Y
-		distance := math.Sqrt(dx*dx + dy*dy)
-		gradW := spatial.SmoothingKernelGradient(sim, NEIGHBOR_RADIUS, distance)
-		pressureTerm := (p.Pressure / (p.Density * p.Density)) + (neighbor.Pressure / (neighbor.Density * neighbor.Density))
-		force.X += gradW * pressureTerm * dx
-		force.Y += gradW * pressureTerm * dy
+		gradW := spatial.SmoothingKernelGradient(p)
+		sharedPressure := (p.Pressure + neighbor.Pressure) / (2 * neighbor.Density)
+		scaledPressure := sharedPressure * PressureMultiplier
+
+		force.X += gradW.X * scaledPressure * dx
+		force.Y += gradW.Y * scaledPressure * dy
 	}
 	return force
 }
 
-func (sim *FluidSim) CalculateViscosityForce(p *core.Particle) core.Vector {
+func (sim *FluidSim) CalculateViscosityForce(p core.Particle) core.Vector {
 	var force core.Vector
 	for _, neighbor := range p.Neighbors {
 		dx := neighbor.X - p.X
 		dy := neighbor.Y - p.Y
-		distance := math.Sqrt(dx*dx + dy*dy)
-		lapW := spatial.SmoothingKernelLaplacian(sim, NEIGHBOR_RADIUS, distance)
+
+		lapW := spatial.SmoothingKernelLaplacian(p)
 		viscosityTerm := (neighbor.Vx - p.Vx + neighbor.Vy - p.Vy) / neighbor.Density
+
 		force.X += sim.Nu * lapW * viscosityTerm * dx
 		force.Y += sim.Nu * lapW * viscosityTerm * dy
 	}
@@ -108,7 +90,7 @@ func (sim *FluidSim) CalculateViscosityForce(p *core.Particle) core.Vector {
 }
 
 func (sim *FluidSim) FindNeighbors() {
-	for i := range sim.Particles {
+	parallelFor(0, len(sim.Particles), func(i int) {
 		// Clear existing neighbors
 		sim.Particles[i].Neighbors = nil
 
@@ -132,7 +114,7 @@ func (sim *FluidSim) FindNeighbors() {
 				}
 			}
 		}
-	}
+	})
 }
 
 func (sim *FluidSim) UpdateDensity() {
@@ -140,8 +122,8 @@ func (sim *FluidSim) UpdateDensity() {
 	for i, p := range sim.Particles {
 		density := 0.0
 		for _, neighbor := range p.Neighbors {
-			distance := calculateDistance(p, neighbor)
-			influence := SmoothingKernel(NEIGHBOR_RADIUS, distance)
+			distance := core.CalculateDistance(p, neighbor)
+			influence := spatial.SmoothingKernel(NEIGHBOR_RADIUS, distance)
 			density += mass * influence
 		}
 		sim.Particles[i].Density = density
@@ -166,9 +148,8 @@ func (sim *FluidSim) UpdateForces(gravity float64) {
 		sim.Particles[i].Force.Y -= sim.Particles[i].Density * gravity
 	}
 
-	// TODO: implement pressure and viscosity forces
 	for i := range sim.Particles {
-		p1 := &sim.Particles[i]
+		p1 := sim.Particles[i]
 		pressureForce := sim.CalculatePressureForce(p1)
 		viscosityForce := sim.CalculateViscosityForce(p1)
 
@@ -179,23 +160,26 @@ func (sim *FluidSim) UpdateForces(gravity float64) {
 
 func (sim *FluidSim) Integrate() {
 	for i := range sim.Particles {
-		// Update velocities based on forces
+		// update velocities
 		sim.Particles[i].Vx += sim.Particles[i].Force.X * sim.Dt
 		sim.Particles[i].Vy += sim.Particles[i].Force.Y * sim.Dt
 
-		// Update positions based on updated velocities
+		// update positions
 		sim.Particles[i].X += sim.Particles[i].Vx * sim.Dt
-		sim.Particles[i].Y += sim.Particles[i].Vy * sim.Dt // Changed from '-' to '+' to make it consistent
+		sim.Particles[i].Y += sim.Particles[i].Vy * sim.Dt
 
-		// Boundary Conditions
+		// -- boundary conditions --
 
-		// Floor condition
+		// bounce off top and bottom
 		if sim.Particles[i].Y > sim.Domain.Y {
 			sim.Particles[i].Y = sim.Domain.Y
-			sim.Particles[i].Vy *= -DAMPENING_FACTOR // Reverse and dampen vertical velocity
+			sim.Particles[i].Vy *= -DAMPENING_FACTOR
+		} else if sim.Particles[i].Y < 0 {
+			sim.Particles[i].Y = 0
+			sim.Particles[i].Vy *= -DAMPENING_FACTOR
 		}
 
-		// Loop-around from left to right
+		// Loop-around from left to right (periodic boundary)
 		if sim.Particles[i].X < 0 {
 			sim.Particles[i].X += sim.Domain.X // Move particle to right boundary
 		} else if sim.Particles[i].X > sim.Domain.X {
