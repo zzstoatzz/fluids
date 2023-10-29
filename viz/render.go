@@ -13,7 +13,7 @@ func NewWindow() (*sdl.Renderer, *sdl.Window, error) {
 		return nil, nil, err
 	}
 
-	window, err := sdl.CreateWindow("Fluid Simulation", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, 800, 600, sdl.WINDOW_SHOWN)
+	window, err := sdl.CreateWindow("Fluid Simulation", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, 1200, 800, sdl.WINDOW_SHOWN)
 	if err != nil {
 		return nil, nil, err
 	}

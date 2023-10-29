@@ -90,7 +90,7 @@ func (sim *FluidSim) CalculateViscosityForce(p core.Particle) core.Vector {
 }
 
 func (sim *FluidSim) FindNeighbors() {
-	parallelFor(0, len(sim.Particles), func(i int) {
+	for i := range sim.Particles {
 		// Clear existing neighbors
 		sim.Particles[i].Neighbors = nil
 
@@ -114,7 +114,7 @@ func (sim *FluidSim) FindNeighbors() {
 				}
 			}
 		}
-	})
+	}
 }
 
 func (sim *FluidSim) UpdateDensity() {
@@ -192,9 +192,9 @@ func (sim *FluidSim) Integrate() {
 
 func (sim *FluidSim) Step(gravity float64) {
 	sim.Grid.Update(sim.Particles)
-	sim.FindNeighbors()
-	sim.UpdateDensity()
-	sim.UpdatePressure()
+	// sim.FindNeighbors()
+	// sim.UpdateDensity()
+	// sim.UpdatePressure()
 	sim.UpdateForces(gravity)
 	sim.Integrate()
 }

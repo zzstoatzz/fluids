@@ -99,7 +99,7 @@ func main() {
 	flag.Float64Var(&nu, "nu", 10.0, "Viscosity")
 	flag.Float64Var(&domainX, "domainX", 100.0, "Domain X size")
 	flag.Float64Var(&domainY, "domainY", 100.0, "Domain Y size")
-	flag.Float64Var(&domainY, "speedScale", 3.8, "Speed scale")
+	flag.Float64Var(&domainY, "speedScale", 6.0, "Speed scale")
 	flag.Int64Var(&frameRate, "fps", 120, "Frame rate")
 	flag.Float64Var(&gravity, "g", -9.81, "Gravity")
 
