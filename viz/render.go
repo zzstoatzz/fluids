@@ -1,6 +1,8 @@
 package viz
 
 import (
+	"fluids/core"
+	"fluids/simulation"
 	"math"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -37,7 +39,7 @@ func drawCircle(renderer *sdl.Renderer, centerX, centerY, radius int32) {
 }
 
 // RenderFrame renders a single frame
-func RenderFrame(renderer *sdl.Renderer, U []float64, V []float64, nx int, ny int) {
+func RenderFrame(renderer *sdl.Renderer, particles []core.Particle, domain simulation.Domain) {
 	// Clear the screen
 	renderer.SetDrawColor(0, 0, 0, 255)
 	renderer.Clear()
@@ -46,21 +48,25 @@ func RenderFrame(renderer *sdl.Renderer, U []float64, V []float64, nx int, ny in
 	renderer.SetDrawColor(255, 255, 255, 255)
 	renderer.DrawRect(&sdl.Rect{X: 0, Y: 0, W: 800, H: 600})
 
+	// Define scaling factors based on window size and domain size
+	scaleX := float32(800.0 / domain.X)
+	scaleY := float32(600.0 / domain.Y)
+
 	// Draw particles based on fluid velocities
-	for i := 0; i < nx; i++ {
-		for j := 0; j < ny; j++ {
-			index := i*ny + j
-			velocity := math.Sqrt(U[index]*U[index] + V[index]*V[index])
-			t := math.Min(1, velocity/3.0) // Adjust this value based on your max velocity
+	for _, particle := range particles {
+		velocity := math.Sqrt(particle.Vx*particle.Vx + particle.Vy*particle.Vy)
+		t := float32(math.Min(1, velocity/10.0)) // Adjust this value based on your maximum expected velocity
 
-			// Lerp between blue and red based on velocity
-			r, g, b := uint8(0*(1-t)+255*t), uint8(0), uint8(255*(1-t)+0*t)
-			renderer.SetDrawColor(r, g, b, 255)
+		// Lerp between blue and red based on velocity
+		r, g, b := uint8(0*(1-t)+255*t), uint8(0), uint8(255*(1-t)+0*t)
+		renderer.SetDrawColor(r, g, b, 255)
 
-			x := int32(i * 20)
-			y := int32(600 - int(V[index]*500))
-			drawCircle(renderer, x, y, 2) // Draw circle with radius 5
-		}
+		// Scale particle positions
+		x := int32(particle.X * float64(scaleX))
+		y := int32(particle.Y * float64(scaleY))
+
+		// Draw circle with radius
+		drawCircle(renderer, x, y, 3)
 	}
 
 	renderer.Present()
