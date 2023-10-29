@@ -14,8 +14,8 @@ type Grid struct {
 	NumCellsX, NumCellsY int
 }
 
-// InitializeGrid initializes the grid and allocates memory for cells
-func InitializeGrid(cellSize float64, domainX, domainY int) *Grid {
+// initializes the grid and allocates memory for cells
+func NewGrid(cellSize float64, domainX, domainY int) *Grid {
 	numCellsX := int(float64(domainX) / cellSize)
 	numCellsY := int(float64(domainY) / cellSize)
 	cells := make([][]Cell, numCellsX)

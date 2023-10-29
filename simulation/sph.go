@@ -1,11 +1,21 @@
 package simulation
 
+// TODO: Implement placeholder functions
+// func (sim *FluidSim) FindNeighbors(p Particle) []Particle {}
+// func (sim *FluidSim) CalculateDensity(p Particle) float64 {}
+// func (sim *FluidSim) CalculatePressure(density float64) float64 {}
+// func (sim *FluidSim) CalculatePressureForce(p Particle) Vector {}
+// func (sim *FluidSim) CalculateViscosityForce(p Particle) Vector {}
+// func (sim *FluidSim) CalculateGravityForce(p Particle) Vector {}
+
 import (
 	"fluids/core"
 	"fluids/spatial"
+	"math"
 	"math/rand"
 )
 
+const K = 1000.0
 const DAMPENING_FACTOR = 0.5
 const NEIGHBOR_RADIUS = 5.0
 const Gravity = -9.81 // Acceleration due to gravity in m/s^2
@@ -29,6 +39,18 @@ type FluidSim struct {
 	Grid      *spatial.Grid
 }
 
+func SmoothingKernel(radius, distance float64) float64 {
+	// thank you mr. sebastian lague - https://www.youtube.com/watch?v=rSKMYc1CQHE
+	value := math.Max(0, radius-distance)
+	return value * value * value
+}
+
+func calculateDistance(p1, p2 core.Particle) float64 {
+	dx := p1.X - p2.X
+	dy := p1.Y - p2.Y
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
 func RandomInitialCondition(i, n int) (float64, float64, float64, float64) {
 	x := rand.Float64() * 100.0
 	y := rand.Float64() * 100.0
@@ -44,7 +66,7 @@ func NewFluidSim(n int, dt, domainX, domainY, rho0, nu float64) *FluidSim {
 		particles[i].Density = rho0
 	}
 
-	grid := spatial.InitializeGrid(5.0, int(domainX), int(domainY))
+	grid := spatial.NewGrid(5.0, int(domainX), int(domainY))
 
 	return &FluidSim{
 		Particles: particles,
@@ -57,7 +79,35 @@ func NewFluidSim(n int, dt, domainX, domainY, rho0, nu float64) *FluidSim {
 	}
 }
 
-func (sim *FluidSim) FindAllNeighbors() {
+func (sim *FluidSim) CalculatePressureForce(p *core.Particle) core.Vector {
+	var force core.Vector
+	for _, neighbor := range p.Neighbors {
+		dx := neighbor.X - p.X
+		dy := neighbor.Y - p.Y
+		distance := math.Sqrt(dx*dx + dy*dy)
+		gradW := spatial.SmoothingKernelGradient(sim, NEIGHBOR_RADIUS, distance)
+		pressureTerm := (p.Pressure / (p.Density * p.Density)) + (neighbor.Pressure / (neighbor.Density * neighbor.Density))
+		force.X += gradW * pressureTerm * dx
+		force.Y += gradW * pressureTerm * dy
+	}
+	return force
+}
+
+func (sim *FluidSim) CalculateViscosityForce(p *core.Particle) core.Vector {
+	var force core.Vector
+	for _, neighbor := range p.Neighbors {
+		dx := neighbor.X - p.X
+		dy := neighbor.Y - p.Y
+		distance := math.Sqrt(dx*dx + dy*dy)
+		lapW := spatial.SmoothingKernelLaplacian(sim, NEIGHBOR_RADIUS, distance)
+		viscosityTerm := (neighbor.Vx - p.Vx + neighbor.Vy - p.Vy) / neighbor.Density
+		force.X += sim.Nu * lapW * viscosityTerm * dx
+		force.Y += sim.Nu * lapW * viscosityTerm * dy
+	}
+	return force
+}
+
+func (sim *FluidSim) FindNeighbors() {
 	for i := range sim.Particles {
 		// Clear existing neighbors
 		sim.Particles[i].Neighbors = nil
@@ -85,11 +135,27 @@ func (sim *FluidSim) FindAllNeighbors() {
 	}
 }
 
-func (sim *FluidSim) UpdateDensityAndPressure() {
-	// TODO: Implement this
+func (sim *FluidSim) UpdateDensity() {
+	mass := 1.0
+	for i, p := range sim.Particles {
+		density := 0.0
+		for _, neighbor := range p.Neighbors {
+			distance := calculateDistance(p, neighbor)
+			influence := SmoothingKernel(NEIGHBOR_RADIUS, distance)
+			density += mass * influence
+		}
+		sim.Particles[i].Density = density
+	}
 }
 
-func (sim *FluidSim) UpdateForces() {
+// Pressure Calculation
+func (sim *FluidSim) UpdatePressure() {
+	for i, p := range sim.Particles {
+		sim.Particles[i].Pressure = K * (p.Density - sim.Rho0)
+	}
+}
+
+func (sim *FluidSim) UpdateForces(gravity float64) {
 	// Reset forces for all particles
 	for i := range sim.Particles {
 		sim.Particles[i].Force = core.Vector{X: 0, Y: 0}
@@ -97,18 +163,18 @@ func (sim *FluidSim) UpdateForces() {
 
 	// Add gravitational force (multiplied by density to simulate effect of mass)
 	for i := range sim.Particles {
-		sim.Particles[i].Force.Y -= sim.Particles[i].Density * Gravity
+		sim.Particles[i].Force.Y -= sim.Particles[i].Density * gravity
 	}
 
 	// TODO: implement pressure and viscosity forces
-	// for i := range sim.Particles {
-	//     p1 := &sim.Particles[i]
-	//     pressureForce := sim.CalculatePressureForce(p1)
-	//     viscosityForce := sim.CalculateViscosityForce(p1)
+	for i := range sim.Particles {
+		p1 := &sim.Particles[i]
+		pressureForce := sim.CalculatePressureForce(p1)
+		viscosityForce := sim.CalculateViscosityForce(p1)
 
-	//     p1.Force.X += pressureForce.X + viscosityForce.X
-	//     p1.Force.Y += pressureForce.Y + viscosityForce.Y
-	// }
+		p1.Force.X += pressureForce.X + viscosityForce.X
+		p1.Force.Y += pressureForce.Y + viscosityForce.Y
+	}
 }
 
 func (sim *FluidSim) Integrate() {
@@ -138,18 +204,13 @@ func (sim *FluidSim) Integrate() {
 	}
 }
 
-func (sim *FluidSim) Step() {
+// ####################################################################################################
+
+func (sim *FluidSim) Step(gravity float64) {
 	sim.Grid.Update(sim.Particles)
-	// sim.FindAllNeighbors()
-	sim.UpdateDensityAndPressure()
-	sim.UpdateForces()
+	sim.FindNeighbors()
+	sim.UpdateDensity()
+	sim.UpdatePressure()
+	sim.UpdateForces(gravity)
 	sim.Integrate()
 }
-
-// TODO: Implement placeholder functions
-// func (sim *FluidSim) FindNeighbors(p Particle) []Particle {}
-// func (sim *FluidSim) CalculateDensity(p Particle) float64 {}
-// func (sim *FluidSim) CalculatePressure(density float64) float64 {}
-// func (sim *FluidSim) CalculatePressureForce(p Particle) Vector {}
-// func (sim *FluidSim) CalculateViscosityForce(p Particle) Vector {}
-// func (sim *FluidSim) CalculateGravityForce(p Particle) Vector {}
