@@ -11,15 +11,14 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const DEFAULT_GRAVITY = -1000.0
+const DEFAULT_GRAVITY = -10000.0
 
 func RunSimulation(
 	seed int64,
 	n int,
 	dt, rho0, nu, domainX, domainY, pressureMultiplier float64,
 	frameRate int64,
-	particleRadius float64,
-	gravity float64,
+	particleRadius, gravity, mouseForce float64,
 ) {
 	domain := simulation.Domain{X: domainX, Y: domainY}
 
@@ -69,13 +68,13 @@ func RunSimulation(
 			case *sdl.MouseButtonEvent:
 				if e.Type == sdl.MOUSEBUTTONDOWN {
 					if e.Button == sdl.BUTTON_LEFT {
-						input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight)
+						input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight, mouseForce)
 					}
 				}
 			}
 		}
 		if !paused {
-			meanPressure, stdPressure := fluidSim.Step(gravity, pressureMultiplier)
+			meanPressure, stdPressure := fluidSim.Step(gravity, pressureMultiplier, dt)
 			viz.RenderFrame(
 				renderer,
 				fluidSim.Particles,
@@ -106,18 +105,20 @@ func main() {
 		pressureMultiplier float64
 		frameRate          int64
 		gravity            float64
+		mouseForce         float64
 	)
 
 	flag.IntVar(&n, "n", 500, "Number of particles")
-	flag.Float64Var(&dt, "dt", 0.007, "Time step")
+	flag.Float64Var(&dt, "dt", 0.0005, "Time step")
 	flag.Float64Var(&rho0, "rho0", 1.0, "Reference density")
-	flag.Float64Var(&nu, "nu", 2.0, "Viscosity")
+	flag.Float64Var(&nu, "nu", 1.0, "Viscosity")
 	flag.Float64Var(&domainX, "domainX", 100.0, "Domain X size")
 	flag.Float64Var(&domainY, "domainY", 100.0, "Domain Y size")
-	flag.Float64Var(&pressureMultiplier, "pressure", 10.0, "Pressure multiplier")
-	flag.Int64Var(&frameRate, "fps", 360, "Frame rate")
-	flag.Float64Var(&particleRadius, "radius", 1.8, "Particle radius")
+	flag.Float64Var(&pressureMultiplier, "pressure", 10000.0, "Pressure multiplier")
+	flag.Int64Var(&frameRate, "fps", 480, "Frame rate")
+	flag.Float64Var(&particleRadius, "radius", 2.4, "Particle radius")
 	flag.Float64Var(&gravity, "g", 0, "Gravity")
+	flag.Float64Var(&mouseForce, "boom", 100.0, "Mouse force")
 
 	flag.Parse()
 
@@ -134,5 +135,6 @@ func main() {
 		frameRate,
 		particleRadius,
 		gravity,
+		mouseForce,
 	)
 }

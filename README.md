@@ -3,18 +3,15 @@ git clone https://github.com/zzstoatzz/fluids.git
 
 cd fluids
 
-# no gravity, 500 particles, time step 0.007
 go run main.go
-
-# gravity, 800 particles, time step 0.01, radius 5, 120 fps, gravity -1000
-go run main.go -n 800 -dt 0.01 -radius 4 -fps 240 -g -1000
 ```
 ### flags
-- n: number of particles
-- radius: radius of particles
-- fps: frames per second
-- g: gravity (defaults to -9.81)
-- dt: time step (defaults to 0.005)
+- n: number of particles (defaults to 500)
+- radius: radius of particles (defaults to 2.4)
+- fps: frames per second (defaults to 480)
+- g: gravity (defaults to disabled and -10000.0 if gravity toggled while not set by flag)
+- dt: time step (defaults to 0.0005 seconds)
+- boom: magntiude of left click blast (defaults to 100.0)
 
 ### controls
 - click to create a small blast radius

@@ -5,7 +5,7 @@ import (
 	"math"
 )
 
-const SMOOTHING_RADIUS = 3.0
+const SMOOTHING_RADIUS = 4.0
 
 func SmoothingKernel(radius, distance float64) float64 {
 	// thank you mr. sebastian lague - https://www.youtube.com/watch?v=rSKMYc1CQHE
@@ -36,16 +36,17 @@ func CalculateDensity(point core.Particle) float64 {
 
 	return density
 }
-
 func SmoothingKernelGradient(point core.Particle) core.Vector {
-	var gradW core.Vector
-
+	gradW := core.Vector{}
 	for _, neighbor := range point.Neighbors {
 		distance := core.CalculateDistance(point, neighbor)
-		slope := SmoothingKernelDerivative(SMOOTHING_RADIUS, distance)
-		gradW.X += slope * (point.X - neighbor.X) / point.Density
+		dir := core.Vector{
+			X: neighbor.X - point.X,
+			Y: neighbor.Y - point.Y,
+		}
+		dir.Multiply(SmoothingKernelDerivative(SMOOTHING_RADIUS, distance))
+		gradW.Add(&dir)
 	}
-
 	return gradW
 }
 

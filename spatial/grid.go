@@ -2,6 +2,7 @@ package spatial
 
 import (
 	"fluids/core"
+	"fmt"
 )
 
 type Cell struct {
@@ -9,41 +10,29 @@ type Cell struct {
 }
 
 type Grid struct {
-	Cells                [][]Cell
+	CellMap              map[string][]int // Map from cell key to particle indices
 	CellSize             float64
 	NumCellsX, NumCellsY int
 }
 
-// initializes the grid and allocates memory for cells
 func NewGrid(cellSize float64, domainX, domainY int) *Grid {
-	numCellsX := int(float64(domainX) / cellSize)
-	numCellsY := int(float64(domainY) / cellSize)
-	cells := make([][]Cell, numCellsX)
-	for i := range cells {
-		cells[i] = make([]Cell, numCellsY)
-	}
 	return &Grid{
-		Cells:     cells,
+		CellMap:   make(map[string][]int),
 		CellSize:  cellSize,
-		NumCellsX: numCellsX,
-		NumCellsY: numCellsY,
+		NumCellsX: int(float64(domainX) / cellSize),
+		NumCellsY: int(float64(domainY) / cellSize),
 	}
 }
 
 // Update populates the grid cells with particle indices
 func (g *Grid) Update(particles []core.Particle) {
-	// Clear existing cells
-	for i := range g.Cells {
-		for j := range g.Cells[i] {
-			g.Cells[i][j].Particles = nil
-		}
-	}
-	// Populate cells with particle indices
+	g.CellMap = make(map[string][]int) // Clear existing cells
+
 	for idx, p := range particles {
 		i := int(p.X / g.CellSize)
 		j := int(p.Y / g.CellSize)
-		if i >= 0 && i < g.NumCellsX && j >= 0 && j < g.NumCellsY {
-			g.Cells[i][j].Particles = append(g.Cells[i][j].Particles, idx)
-		}
+		key := fmt.Sprintf("%d-%d", i, j) // Generate cell key
+
+		g.CellMap[key] = append(g.CellMap[key], idx)
 	}
 }
