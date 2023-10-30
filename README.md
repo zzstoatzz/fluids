@@ -1,5 +1,3 @@
-![](/img/fluidsdemogithub.gif)
-
 ```console
 git clone https://github.com/zzstoatzz/fluids.git
 
