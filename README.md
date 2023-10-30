@@ -9,7 +9,7 @@ go run main.go
 - n: number of particles (defaults to 500)
 - radius: radius of particles (defaults to 2.4)
 - fps: frames per second (defaults to 480)
-- g: gravity (defaults to disabled and -10000.0 if gravity toggled while not set by flag)
+- g: gravity (defaults to disabled and -100000 if gravity toggled while not set by flag)
 - dt: time step (defaults to 0.0005 seconds)
 - boom: magntiude of left click blast (defaults to 100.0)
 

@@ -11,7 +11,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const DEFAULT_GRAVITY = -10000.0
+const DEFAULT_GRAVITY = -100000.0
 
 func RunSimulation(
 	seed int64,
