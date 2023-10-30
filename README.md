@@ -13,7 +13,12 @@ go run main.go
 - dt: time step (defaults to 0.0005 seconds)
 - boom: magntiude of left click blast (defaults to 100.0)
 
-### controls
+### example
+```console
+go run main.go -n 100 -radius 4 -pressure 100000 -fps 240 -dt 0.0001 -boom 1000
+```
+
+### in-simulation controls
 - click to create a small blast radius
 - press g to toggle gravity
 - press space to pause
