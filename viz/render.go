@@ -13,7 +13,7 @@ func NewWindow() (*sdl.Renderer, *sdl.Window, error) {
 		return nil, nil, err
 	}
 
-	window, err := sdl.CreateWindow("Fluid Simulation", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, 800, 600, sdl.WINDOW_SHOWN)
+	window, err := sdl.CreateWindow("Fluid Simulation", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, 1200, 800, sdl.WINDOW_SHOWN)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -26,45 +26,45 @@ func NewWindow() (*sdl.Renderer, *sdl.Window, error) {
 	return renderer, window, nil
 }
 
-// Helper function to draw a circle
+func sigmoid(x float64) float64 {
+	return 1.0 / (1.0 + math.Exp(-x))
+}
+
 func drawCircle(renderer *sdl.Renderer, centerX, centerY, radius int32) {
-	for w := -radius; w < radius; w++ {
-		for h := -radius; h < radius; h++ {
-			if w*w+h*h <= radius*radius {
-				renderer.DrawPoint(centerX+w, centerY+h)
-			}
-		}
+	for theta := 0.0; theta < 2*math.Pi; theta += 0.01 {
+		x := centerX + int32(math.Cos(theta)*float64(radius))
+		y := centerY + int32(math.Sin(theta)*float64(radius))
+		renderer.DrawPoint(x, y)
 	}
 }
 
-// RenderFrame renders a single frame
+// renders a single frame
 func RenderFrame(
 	renderer *sdl.Renderer,
 	particles []core.Particle,
 	domain simulation.Domain,
 	windowWidth, windowHeight int32,
-	speed_scale float64,
 	particleRadius float64,
+	meanPressure float64,
+	stdPressure float64,
 ) {
 	// Clear the screen
 	renderer.SetDrawColor(0, 0, 0, 255)
 	renderer.Clear()
 
-	// Draw bounding box
-	renderer.SetDrawColor(255, 255, 255, 255)
-	renderer.DrawRect(&sdl.Rect{X: 0, Y: 0, W: windowWidth, H: windowHeight})
-
 	// Define scaling factors based on window size and domain size
 	scaleX := float32(windowWidth) / float32(domain.X)
 	scaleY := float32(windowHeight) / float32(domain.Y)
 
-	// Draw particles based on fluid velocities
+	// Draw particles based on fluid pressures
 	for _, particle := range particles {
-		velocity := math.Sqrt(particle.Vx*particle.Vx + particle.Vy*particle.Vy)
-		t := float32(math.Min(1, velocity*speed_scale))
+		// Normalize pressure using sigmoid function
+		normalizedPressure := sigmoid((particle.Pressure - meanPressure) / stdPressure)
 
-		// Lerp between blue and red based on velocity
-		r, g, b := uint8(0*(1-t)+255*t), uint8(0), uint8(255*(1-t)+0*t)
+		// Lerp between blue and white based on normalized pressure
+		r := uint8(255 * normalizedPressure)
+		g := uint8(255 * normalizedPressure)
+		b := uint8(255*(1-normalizedPressure) + normalizedPressure*255)
 		renderer.SetDrawColor(r, g, b, 255)
 
 		// Scale particle positions

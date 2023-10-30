@@ -1,7 +1,31 @@
 package core
 
+import "math"
+
 type Vector struct {
 	X, Y float64
+}
+
+func (v *Vector) Add(other *Vector) {
+	v.X += other.X
+	v.Y += other.Y
+}
+
+func (v *Vector) Subtract(other *Vector) {
+	v.X -= other.X
+	v.Y -= other.Y
+}
+
+func (v *Vector) Multiply(scalar float64) {
+	v.X *= scalar
+	v.Y *= scalar
+}
+
+func (v Vector) MultiplyByScalar(scalar float64) *Vector {
+	return &Vector{
+		X: v.X * scalar,
+		Y: v.Y * scalar,
+	}
 }
 
 type Particle struct {
@@ -11,4 +35,10 @@ type Particle struct {
 	Pressure  float64
 	Force     Vector // Force
 	Neighbors []Particle
+}
+
+func CalculateDistance(p1, p2 Particle) float64 {
+	dx := p1.X - p2.X
+	dy := p1.Y - p2.Y
+	return math.Sqrt(dx*dx + dy*dy)
 }
