@@ -3,9 +3,11 @@ git clone https://github.com/zzstoatzz/fluids.git
 
 cd fluids
 
-go run main.go -g 0 # 300 particles, no gravity
+# no gravity, 500 particles, time step 0.007
+go run main.go
 
-go run main.go -n 1000 -radius 5 -fps 60 -g 0 # 1000 particles, radius 5, 60 fps, no gravity
+# gravity, 800 particles, time step 0.01, radius 5, 120 fps, gravity -1000
+go run main.go -n 800 -dt 0.01 -radius 4 -fps 240 -g -1000
 ```
 ### flags
 - n: number of particles
