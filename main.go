@@ -11,17 +11,19 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
+const DEFAULT_GRAVITY = -1000.0
+
 func RunSimulation(
 	seed int64,
 	n int,
-	dt, rho0, nu, domainX, domainY, speed_scale float64,
+	dt, rho0, nu, domainX, domainY, pressureMultiplier float64,
 	frameRate int64,
 	particleRadius float64,
 	gravity float64,
 ) {
-	domain := simulation.Domain{X: 100, Y: 100}
+	domain := simulation.Domain{X: domainX, Y: domainY}
 
-	fluidSim := simulation.NewFluidSim(n, dt, domain.X, domain.Y, rho0, nu)
+	fluidSim := simulation.NewFluidSim(n, domain, dt, rho0, nu)
 
 	renderer, window, err := viz.NewWindow()
 	if err != nil {
@@ -32,9 +34,10 @@ func RunSimulation(
 
 	var mouseX, mouseY int32
 	running := true
+	paused := false
 
 	originalGravity := gravity
-	defaultGravity := -9.81 // Default gravity value
+	defaultGravity := DEFAULT_GRAVITY // Default gravity value
 
 	for running {
 		// handle SDL Events
@@ -57,6 +60,10 @@ func RunSimulation(
 								gravity = originalGravity
 							}
 						}
+					case sdl.K_r: // 'R' key to reset the simulation
+						fluidSim = simulation.NewFluidSim(n, domain, dt, rho0, nu)
+					case sdl.K_SPACE: // Space key to pause/unpause
+						paused = !paused
 					}
 				}
 			case *sdl.MouseButtonEvent:
@@ -67,10 +74,19 @@ func RunSimulation(
 				}
 			}
 		}
-		fluidSim.Step(gravity)
-		viz.RenderFrame(
-			renderer, fluidSim.Particles, fluidSim.Domain, windowWidth, windowHeight, speed_scale, particleRadius,
-		)
+		if !paused {
+			meanPressure, stdPressure := fluidSim.Step(gravity, pressureMultiplier)
+			viz.RenderFrame(
+				renderer,
+				fluidSim.Particles,
+				fluidSim.Domain,
+				windowWidth,
+				windowHeight,
+				particleRadius,
+				meanPressure,
+				stdPressure,
+			)
+		}
 
 		// we interpret frameRate as frames per second
 		// so we need to sleep for 1/frameRate seconds
@@ -80,28 +96,28 @@ func RunSimulation(
 
 func main() {
 	var (
-		n              int
-		particleRadius float64
-		dt             float64
-		rho0           float64
-		nu             float64
-		domainX        float64
-		domainY        float64
-		speedScale     float64
-		frameRate      int64
-		gravity        float64
+		n                  int
+		particleRadius     float64
+		dt                 float64
+		rho0               float64
+		nu                 float64
+		domainX            float64
+		domainY            float64
+		pressureMultiplier float64
+		frameRate          int64
+		gravity            float64
 	)
 
-	flag.IntVar(&n, "n", 1000, "Number of particles")
-	flag.Float64Var(&particleRadius, "radius", 1.0, "Particle radius")
-	flag.Float64Var(&dt, "dt", 0.001, "Time step")
+	flag.IntVar(&n, "n", 500, "Number of particles")
+	flag.Float64Var(&dt, "dt", 0.007, "Time step")
 	flag.Float64Var(&rho0, "rho0", 1.0, "Reference density")
-	flag.Float64Var(&nu, "nu", 10.0, "Viscosity")
+	flag.Float64Var(&nu, "nu", 2.0, "Viscosity")
 	flag.Float64Var(&domainX, "domainX", 100.0, "Domain X size")
 	flag.Float64Var(&domainY, "domainY", 100.0, "Domain Y size")
-	flag.Float64Var(&domainY, "speedScale", 6.0, "Speed scale")
-	flag.Int64Var(&frameRate, "fps", 120, "Frame rate")
-	flag.Float64Var(&gravity, "g", -9.81, "Gravity")
+	flag.Float64Var(&pressureMultiplier, "pressure", 10.0, "Pressure multiplier")
+	flag.Int64Var(&frameRate, "fps", 360, "Frame rate")
+	flag.Float64Var(&particleRadius, "radius", 1.8, "Particle radius")
+	flag.Float64Var(&gravity, "g", 0, "Gravity")
 
 	flag.Parse()
 
@@ -114,7 +130,7 @@ func main() {
 		nu,
 		domainX,
 		domainY,
-		speedScale,
+		pressureMultiplier,
 		frameRate,
 		particleRadius,
 		gravity,
