@@ -51,15 +51,16 @@ func (g *Grid) Update(particles []core.Particle) {
 	}
 
 	// Add particles to cells
-	for idx, p := range particles {
+	for idx := range particles { // Iterate by index to modify the original slice elements
+		p := &particles[idx] // Get a pointer to the original particle
 		i := int(p.X / g.CellSize)
 		j := int(p.Y / g.CellSize)
 		cellIdx := MakeCellIndex(i, j)
 
 		// Store cell coordinates on the particle for faster neighbor lookup
-		p.CellX = i
-		p.CellY = j
-		
+		p.CellX = i // Modifies the original particle via pointer
+		p.CellY = j // Modifies the original particle via pointer
+
 		g.CellMap[cellIdx] = append(g.CellMap[cellIdx], idx)
 	}
 }
@@ -68,18 +69,18 @@ func (g *Grid) Update(particles []core.Particle) {
 func (g *Grid) GetNeighborParticles(cellX, cellY int) []int {
 	// Reset the pre-allocated slice
 	g.NeighborIndices = g.NeighborIndices[:0]
-	
+
 	// Check the specified cell and all 8 neighboring cells
 	for dx := -1; dx <= 1; dx++ {
 		for dy := -1; dy <= 1; dy++ {
 			neighborCellX, neighborCellY := cellX+dx, cellY+dy
 			cellIdx := MakeCellIndex(neighborCellX, neighborCellY)
-			
+
 			if indices, found := g.CellMap[cellIdx]; found {
 				g.NeighborIndices = append(g.NeighborIndices, indices...)
 			}
 		}
 	}
-	
+
 	return g.NeighborIndices
 }

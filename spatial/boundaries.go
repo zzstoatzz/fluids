@@ -5,9 +5,9 @@ import (
 	"math/rand"
 )
 
-const EPSILON = 0.001
-const DAMPENING_FACTOR = 0.8  // Using 0.8 instead of 0.7 for better elasticity
-const RANDOMIZATION_FACTOR = 0.05  // Add small random variations to prevent perfect reflections
+const BOUNDARY_EPSILON = 0.001
+const DAMPENING_FACTOR = 0.8      // Using 0.8 instead of 0.7 for better elasticity
+const RANDOMIZATION_FACTOR = 0.05 // Add small random variations to prevent perfect reflections
 
 func Clamp(value, min, max float64) float64 {
 	if value < min {
@@ -40,15 +40,15 @@ func RandomJitter(baseVelocity float64) float64 {
 // Now with added randomization for more natural looking behavior
 func HandleBoundary(position *float64, velocity *float64, limit float64, boundaryType BoundaryType) {
 	// Tiny safety offset to prevent particles from getting stuck at boundaries
-	const pushOut = EPSILON * 2.0
-	
+	const pushOut = BOUNDARY_EPSILON * 2.0
+
 	if *position >= limit {
 		if boundaryType == Reflective {
 			*position = limit - pushOut
-			
+
 			// Reverse and dampen velocity
 			*velocity *= -DAMPENING_FACTOR
-			
+
 			// Add small random angle variation to avoid perfect reflection loops
 			jitter := RandomJitter(*velocity)
 			// For particles hitting top/bottom, add jitter to X velocity
@@ -61,10 +61,10 @@ func HandleBoundary(position *float64, velocity *float64, limit float64, boundar
 	} else if *position <= 0 {
 		if boundaryType == Reflective {
 			*position = pushOut
-			
+
 			// Reverse and dampen velocity
 			*velocity *= -DAMPENING_FACTOR
-			
+
 			// Add small random angle variation
 			jitter := RandomJitter(*velocity)
 			otherVelocity := jitter
