@@ -33,8 +33,12 @@ type Particle struct {
 	Vx, Vy    float64 // Velocity
 	Density   float64
 	Pressure  float64
-	Force     Vector // Force
-	Neighbors []Particle
+	Force     Vector  // Force
+	CellX, CellY int  // Current cell coordinates (optimization)
+	NeighborIndices []int // Indices of neighboring particles (optimization)
+	Neighbors []Particle  // Full particle objects for neighbors
+	Mass      float64    // Particle mass, affects gravitational attraction
+	Radius    float64    // Particle radius, mainly for rendering
 }
 
 func CalculateDistance(p1, p2 Particle) float64 {
