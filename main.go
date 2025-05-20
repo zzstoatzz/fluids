@@ -6,8 +6,11 @@ import (
 	"fluids/simulation"
 	"fluids/viz"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
+	"net/http"
+	_ "net/http/pprof" // Import for pprof side effects
 	"runtime"
 	"time"
 
@@ -48,7 +51,7 @@ func RunSimulation(
 	if err != nil {
 		panic(err)
 	}
-	
+
 	// Make sure we clean up fonts when done
 	defer viz.CleanupFonts()
 
@@ -194,14 +197,14 @@ func RunSimulation(
 
 			// Create settings for display
 			settings := viz.SimSettings{
-				Gravity:          gravity,
-				Pressure:         pressureMultiplier,
-				Drag:             fluidSim.DampeningFactor,
-				Smoothing:        fluidSim.SmoothingFactor,
-				Attraction:       fluidSim.AttractionFactor,
+				Gravity:           gravity,
+				Pressure:          pressureMultiplier,
+				Drag:              fluidSim.DampeningFactor,
+				Smoothing:         fluidSim.SmoothingFactor,
+				Attraction:        fluidSim.AttractionFactor,
 				InteractionRadius: fluidSim.InteractionRadius,
-				ParticleCount:    len(fluidSim.Particles),
-				MouseForce:       mouseForce,
+				ParticleCount:     len(fluidSim.Particles),
+				MouseForce:        mouseForce,
 			}
 
 			// Render the updated particles
@@ -229,6 +232,11 @@ func RunSimulation(
 }
 
 func main() {
+	// Start pprof server for profiling
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	var (
 		// Basic simulation parameters
 		n                  int
