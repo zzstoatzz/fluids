@@ -2,37 +2,84 @@ package spatial
 
 import (
 	"fluids/core"
-	"fmt"
 )
 
-type Cell struct {
-	Particles []int // Indices of particles in this cell
+// CellIndex is an efficient integer-based cell identifier
+type CellIndex int64
+
+// MakeCellIndex creates a new cell index from x,y coordinates
+func MakeCellIndex(cellX, cellY int) CellIndex {
+	// Pack two integers into a single int64 for faster lookup
+	// Using bit shifting to combine x and y into a single value
+	return CellIndex((int64(cellX) << 32) | int64(cellY&0xFFFFFFFF))
+}
+
+// GetCoordinates extracts the x,y cell coordinates from a CellIndex
+func (ci CellIndex) GetCoordinates() (int, int) {
+	return int(int64(ci) >> 32), int(int64(ci) & 0xFFFFFFFF)
 }
 
 type Grid struct {
-	CellMap              map[string][]int // Map from cell key to particle indices
+	CellMap              map[CellIndex][]int // Map from cell index to particle indices
 	CellSize             float64
 	NumCellsX, NumCellsY int
+	// Pre-allocated slice for neighboring cells for better performance
+	NeighborIndices []int
 }
 
 func NewGrid(cellSize float64, domainX, domainY int) *Grid {
 	return &Grid{
-		CellMap:   make(map[string][]int),
-		CellSize:  cellSize,
-		NumCellsX: int(float64(domainX) / cellSize),
-		NumCellsY: int(float64(domainY) / cellSize),
+		CellMap:         make(map[CellIndex][]int),
+		CellSize:        cellSize,
+		NumCellsX:       int(float64(domainX) / cellSize),
+		NumCellsY:       int(float64(domainY) / cellSize),
+		NeighborIndices: make([]int, 0, 64), // Pre-allocate with reasonable capacity
 	}
 }
 
 // Update populates the grid cells with particle indices
+// This is a hot path, so we optimize for performance
 func (g *Grid) Update(particles []core.Particle) {
-	g.CellMap = make(map[string][]int) // Clear existing cells
+	// Clear cell map but try to reuse capacity where possible
+	for k := range g.CellMap {
+		// Keep the allocated slices but reset length to 0
+		if cap(g.CellMap[k]) > 0 {
+			g.CellMap[k] = g.CellMap[k][:0]
+		} else {
+			delete(g.CellMap, k)
+		}
+	}
 
+	// Add particles to cells
 	for idx, p := range particles {
 		i := int(p.X / g.CellSize)
 		j := int(p.Y / g.CellSize)
-		key := fmt.Sprintf("%d-%d", i, j) // Generate cell key
+		cellIdx := MakeCellIndex(i, j)
 
-		g.CellMap[key] = append(g.CellMap[key], idx)
+		// Store cell coordinates on the particle for faster neighbor lookup
+		p.CellX = i
+		p.CellY = j
+		
+		g.CellMap[cellIdx] = append(g.CellMap[cellIdx], idx)
 	}
+}
+
+// GetNeighborParticles returns all particles in neighboring cells efficiently
+func (g *Grid) GetNeighborParticles(cellX, cellY int) []int {
+	// Reset the pre-allocated slice
+	g.NeighborIndices = g.NeighborIndices[:0]
+	
+	// Check the specified cell and all 8 neighboring cells
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			neighborCellX, neighborCellY := cellX+dx, cellY+dy
+			cellIdx := MakeCellIndex(neighborCellX, neighborCellY)
+			
+			if indices, found := g.CellMap[cellIdx]; found {
+				g.NeighborIndices = append(g.NeighborIndices, indices...)
+			}
+		}
+	}
+	
+	return g.NeighborIndices
 }
