@@ -20,20 +20,17 @@ func (ci CellIndex) GetCoordinates() (int, int) {
 }
 
 type Grid struct {
-	CellMap              map[CellIndex][]int // Map from cell index to particle indices
+	CellMap              map[CellIndex][]int
 	CellSize             float64
 	NumCellsX, NumCellsY int
-	// Pre-allocated slice for neighboring cells for better performance
-	NeighborIndices []int
 }
 
 func NewGrid(cellSize float64, domainX, domainY int) *Grid {
 	return &Grid{
-		CellMap:         make(map[CellIndex][]int),
-		CellSize:        cellSize,
-		NumCellsX:       int(float64(domainX) / cellSize),
-		NumCellsY:       int(float64(domainY) / cellSize),
-		NeighborIndices: make([]int, 0, 64), // Pre-allocate with reasonable capacity
+		CellMap:   make(map[CellIndex][]int),
+		CellSize:  cellSize,
+		NumCellsX: int(float64(domainX) / cellSize),
+		NumCellsY: int(float64(domainY) / cellSize),
 	}
 }
 
@@ -58,17 +55,17 @@ func (g *Grid) Update(particles []core.Particle) {
 		cellIdx := MakeCellIndex(i, j)
 
 		// Store cell coordinates on the particle for faster neighbor lookup
-		p.CellX = i // Modifies the original particle via pointer
-		p.CellY = j // Modifies the original particle via pointer
+		p.CellX = i
+		p.CellY = j
 
 		g.CellMap[cellIdx] = append(g.CellMap[cellIdx], idx)
 	}
 }
 
-// GetNeighborParticles returns all particles in neighboring cells efficiently
+// GetNeighborParticles returns all particles in neighboring cells efficiently.
 func (g *Grid) GetNeighborParticles(cellX, cellY int) []int {
 	// Reset the pre-allocated slice
-	g.NeighborIndices = g.NeighborIndices[:0]
+	var neighborIndices []int // Create a new slice for this call
 
 	// Check the specified cell and all 8 neighboring cells
 	for dx := -1; dx <= 1; dx++ {
@@ -77,10 +74,10 @@ func (g *Grid) GetNeighborParticles(cellX, cellY int) []int {
 			cellIdx := MakeCellIndex(neighborCellX, neighborCellY)
 
 			if indices, found := g.CellMap[cellIdx]; found {
-				g.NeighborIndices = append(g.NeighborIndices, indices...)
+				neighborIndices = append(neighborIndices, indices...)
 			}
 		}
 	}
 
-	return g.NeighborIndices
+	return neighborIndices
 }

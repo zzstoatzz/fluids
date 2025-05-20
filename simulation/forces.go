@@ -178,6 +178,7 @@ func (sim *FluidSim) accumulateCellAttractionForces(
 					G := forceMagnitude / distance
 					forceX := G * dx
 					forceY := G * dy
+
 					if math.IsNaN(forceX) || math.IsNaN(forceY) {
 						continue
 					}

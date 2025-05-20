@@ -30,11 +30,12 @@ func RunSimulation(
 	numWorkers int,
 	// Simulation parameters, now passed as a struct
 	simParams simulation.SimParameters,
+	rng *rand.Rand, // Add random number generator
 ) {
 	domain := simulation.Domain{X: domainX, Y: domainY}
 
-	// Create simulation using the passed SimParameters struct
-	fluidSim := simulation.NewFluidSim(numParticles, domain, simParams)
+	// Create simulation using the passed SimParameters struct and rng
+	fluidSim := simulation.NewFluidSim(numParticles, domain, simParams, rng)
 
 	// These were direct fields, now they are part of simParams used in NewFluidSim
 	// fluidSim.SmoothingFactor = simParams.SmoothingFactor
@@ -66,6 +67,7 @@ func RunSimulation(
 	currentGravity := simParams.Gravity
 	currentPressureMultiplier := simParams.PressureMultiplier
 	currentMouseForce := simParams.MouseForce
+	currentMouseForceRadius := simParams.MouseForceRadius // New operational variable
 	// Dt from simParams is the base physics timestep, fluidSim.Dt holds this.
 	// The dt passed to fluidSim.Step is currentDt (which is simParams.Dt initially)
 
@@ -91,13 +93,13 @@ func RunSimulation(
 							}
 						}
 					case sdl.K_r:
-						fluidSim = simulation.NewFluidSim(numParticles, domain, simParams) // Re-init with original params
+						fluidSim = simulation.NewFluidSim(numParticles, domain, simParams, rng) // Re-init with original params and rng
 					case sdl.K_SPACE:
 						paused = !paused
 					case sdl.K_d:
 						showDebug = !showDebug
 					case sdl.K_b:
-						input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight, currentMouseForce*5)
+						input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight, currentMouseForce*5, currentMouseForceRadius)
 					case sdl.K_a:
 						currentPressureMultiplier = math.Max(5000, currentPressureMultiplier-1000)
 						fmt.Printf("Pressure: %.0f\n", currentPressureMultiplier)
@@ -134,20 +136,21 @@ func RunSimulation(
 					case sdl.K_t:
 						fluidSim.InteractionRadius = math.Min(50.0, fluidSim.InteractionRadius+1.0)
 						fmt.Printf("Interaction Radius: %.1f\n", fluidSim.InteractionRadius)
+					case sdl.K_COMMA: // '<' key
+						currentMouseForceRadius = math.Max(5.0, currentMouseForceRadius-5.0)
+						fmt.Printf("Mouse Force Radius: %.1f\n", currentMouseForceRadius)
+					case sdl.K_PERIOD: // '>' key
+						currentMouseForceRadius = math.Min(200.0, currentMouseForceRadius+5.0)
+						fmt.Printf("Mouse Force Radius: %.1f\n", currentMouseForceRadius)
 					}
 				}
 			case *sdl.MouseButtonEvent:
 				if e.Type == sdl.MOUSEBUTTONDOWN && e.Button == sdl.BUTTON_LEFT {
-					input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight, currentMouseForce)
+					input.ApplyMouseForceToParticles(fluidSim, mouseX, mouseY, windowWidth, windowHeight, currentMouseForce, currentMouseForceRadius)
 					if len(mouseEffects) < MAX_MOUSE_EFFECTS {
-						effectRadius := float64(currentMouseForce) / 10.0
-						if effectRadius < 20 {
-							effectRadius = 20
-						} else if effectRadius > 100 {
-							effectRadius = 100
-						}
+						// Use currentMouseForceRadius for the visual effect's MaxRadius
 						mouseEffects = append(mouseEffects, viz.MouseEffect{
-							X: mouseX, Y: mouseY, MaxRadius: effectRadius,
+							X: mouseX, Y: mouseY, MaxRadius: currentMouseForceRadius,
 							StartTime: uint32(sdl.GetTicks64()), Duration: 500, Color: blueRipple,
 						})
 					}
@@ -178,6 +181,7 @@ func RunSimulation(
 				InteractionRadius: fluidSim.InteractionRadius,
 				ParticleCount:     len(fluidSim.Particles),
 				MouseForce:        currentMouseForce,
+				MouseForceRadius:  currentMouseForceRadius, // Pass to viz settings
 			}
 			viz.RenderFrame(renderer, fluidSim.Particles, fluidSim.Domain, windowWidth, windowHeight,
 				particleVisRadius, meanPressure, stdPressure, showDebug, mouseEffects, currentTime, settings)
@@ -206,6 +210,7 @@ func main() {
 		frameRate          int64
 		gravity            float64
 		mouseForce         float64
+		mouseForceRadius   float64 // New flag variable
 		smoothingFactor    float64
 		dampeningFactor    float64
 		numWorkers         int
@@ -227,11 +232,13 @@ func main() {
 	flag.Float64Var(&pressureMultiplier, "pressure", defaultParams.PressureMultiplier, "Pressure multiplier affecting fluid stiffness")
 	flag.Float64Var(&gravity, "g", defaultParams.Gravity, "Gravity strength (0 = disabled, >0 = downward)")
 	flag.Float64Var(&mouseForce, "boom", defaultParams.MouseForce, "Magnitude of mouse explosion force")
+	flag.Float64Var(&mouseForceRadius, "mouseRadius", defaultParams.MouseForceRadius, "Radius of mouse explosion force") // New flag
 	flag.Float64Var(&smoothingFactor, "smooth", defaultParams.SmoothingFactor, "Smoothing factor for forces")
 	flag.Float64Var(&dampeningFactor, "drag", defaultParams.DampeningFactor, "Drag/dampening factor for particle velocity")
 
 	flag.Parse()
-	rand.Seed(seed)
+	// rand.Seed is deprecated, use rand.New(rand.NewSource(seed)) instead
+	rng := rand.New(rand.NewSource(seed))
 
 	// Construct SimParameters from parsed flags to pass to RunSimulation
 	simParams := simulation.SimParameters{
@@ -246,6 +253,7 @@ func main() {
 		Dt:                 dt,
 		Gravity:            gravity,
 		MouseForce:         mouseForce,
+		MouseForceRadius:   mouseForceRadius, // Set from flag
 	}
 
 	RunSimulation(
@@ -256,5 +264,6 @@ func main() {
 		frameRate,
 		numWorkers,
 		simParams,
+		rng, // Pass the new random number generator
 	)
 }

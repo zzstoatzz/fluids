@@ -33,16 +33,16 @@ type FluidSim struct {
 }
 
 // NewFluidSim creates a new fluid simulation using parameters from SimParameters.
-func NewFluidSim(n int, domain Domain, params SimParameters) *FluidSim {
+func NewFluidSim(n int, domain Domain, params SimParameters, rng *rand.Rand) *FluidSim {
 	particles := make([]core.Particle, n)
 
 	for i := 0; i < n; i++ {
-		particles[i].X, particles[i].Y, particles[i].Vx, particles[i].Vy = RandomStillInitialCondition(i, domain)
+		particles[i].X, particles[i].Y, particles[i].Vx, particles[i].Vy = RandomStillInitialCondition(i, domain, rng)
 		// Rho0 is set from params, so particle density can be initialized to it.
 		particles[i].Density = params.Rho0
 		particles[i].NeighborIndices = make([]int, 0, 32)
 		baseRadius := 2.0 // This is particle visual radius, not interaction radius
-		particles[i].Radius = baseRadius * (0.8 + 0.4*rand.Float64())
+		particles[i].Radius = baseRadius * (0.8 + 0.4*rng.Float64())
 		particles[i].Mass = math.Pi * particles[i].Radius * particles[i].Radius
 	}
 
