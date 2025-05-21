@@ -80,7 +80,7 @@ func (sim *FluidSim) Step(gravity, pressureMultiplier, dt float64) (float64, flo
 	// 1. Predictor step
 	sim.PredictPositions(dt)
 
-	// 2. Update spatial grid (Grid itself is in spatial package)
+	// 2. Update spatial grid
 	sim.Grid.Update(sim.Particles)
 
 	// 3. Find neighbors

@@ -21,16 +21,16 @@ type SimParameters struct {
 func GetDefaultSimParameters() SimParameters {
 	return SimParameters{
 		InteractionRadius:  10.0, // Default kernel radius h
-		SmoothingFactor:    0.05, // Default from original -smooth flag
-		DampeningFactor:    0.3,  // Default from original -drag flag
+		SmoothingFactor:    0.10, // Default from original -smooth flag
+		DampeningFactor:    0.2,  // Default from original -drag flag
 		DragEnabled:        true,
 		AttractionFactor:   -50000.0,
 		Rho0:               1000.0,
-		Nu:                 0.5,
-		PressureMultiplier: 1.0,
+		Nu:                 0.8,
+		PressureMultiplier: 10.0,
 		Dt:                 0.0008,
 		Gravity:            0,      // Default gravity off, can be toggled
-		MouseForce:         5000.0, // Default mouse interaction strength
+		MouseForce:         1000.0, // Default mouse interaction strength
 		MouseForceRadius:   100.0,  // Default mouse interaction radius
 	}
 }

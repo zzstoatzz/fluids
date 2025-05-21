@@ -199,8 +199,8 @@ func renderNeighbors(
 	scaleX := float32(windowWidth) / float32(domain.X)
 	scaleY := float32(windowHeight) / float32(domain.Y)
 
-	// Set connection color (semitransparent)
-	renderer.SetDrawColor(50, 200, 100, 30)
+	// Set connection color (semitransparent) - make it dimmer and more transparent
+	renderer.SetDrawColor(100, 100, 100, 15) // Was (50, 200, 100, 30), further reduced alpha
 
 	// Draw connections for each particle
 	for i, particle := range particles {
@@ -300,11 +300,11 @@ func renderVelocities(
 	scaleX := float32(windowWidth) / float32(domain.X)
 	scaleY := float32(windowHeight) / float32(domain.Y)
 
-	// Scale factor for velocity vectors
-	const velocityScale = 3.0
+	// Scale factor for velocity vectors - reduced for less clutter
+	const velocityScale = 1.5 // Was 3.0
 
-	// Set velocity vector color
-	renderer.SetDrawColor(255, 50, 50, 200)
+	// Set velocity vector color - changed to dimmer, more transparent white/gray
+	renderer.SetDrawColor(180, 180, 180, 100) // Was (255, 50, 50, 200)
 
 	// Draw velocity vector for each particle
 	for _, particle := range particles {
@@ -448,7 +448,8 @@ type SimSettings struct {
 	InteractionRadius float64 // Max distance for inter-particle attraction
 	ParticleCount     int
 	MouseForce        float64
-	MouseForceRadius  float64 // Add MouseForceRadius
+	MouseForceRadius  float64
+	GridCellSize      float64 // Add GridCellSize
 }
 
 // renders a single frame with optimizations for smoothness
@@ -485,10 +486,10 @@ func RenderFrame(
 	// Render debug visualizations first (underneath particles)
 	if showDebug {
 		// Visualization of spatial grid cells
-		renderCells(renderer, particles, 4.0, domain, windowWidth, windowHeight)
+		renderCells(renderer, particles, settings.GridCellSize, domain, windowWidth, windowHeight)
 
 		// Visualization of spatial grid
-		renderGrid(renderer, 4.0, domain, windowWidth, windowHeight)
+		renderGrid(renderer, settings.GridCellSize, domain, windowWidth, windowHeight)
 
 		// Visualization of particle neighbors
 		renderNeighbors(renderer, particles, domain, windowWidth, windowHeight)
@@ -912,8 +913,8 @@ func renderSettingsDisplay(
 	renderer.SetDrawColor(0, 0, 0, 180)
 
 	// Draw background panel
-	panelWidth := int32(260)
-	panelHeight := int32(180)
+	panelWidth := int32(220)
+	panelHeight := int32(230)
 	panelX := windowWidth - panelWidth - 10
 	panelY := int32(10)
 
@@ -930,17 +931,17 @@ func renderSettingsDisplay(
 	renderer.DrawRect(&panel)
 
 	// Text rendering settings
-	lineSpacing := int32(22)
+	lineSpacing := int32(21)
 	dotSize := int32(6)
-	startY := panelY + 15
-	fontSize := 14
+	startY := panelY + 10
+	fontSize := 13
 
 	// Panel title
 	titleTexture, titleWidth, titleHeight, err := renderText(
 		renderer,
-		"Simulation Controls",
-		sdl.Color{R: 220, G: 220, B: 255, A: 255},
-		fontSize+2,
+		"SIMULATION CONTROLS",
+		sdl.Color{R: 200, G: 200, B: 220, A: 255},
+		fontSize+1,
 	)
 	if err == nil {
 		defer titleTexture.Destroy()
@@ -948,7 +949,7 @@ func renderSettingsDisplay(
 		// Center the title
 		titleRect := &sdl.Rect{
 			X: panelX + (panelWidth-int32(titleWidth))/2,
-			Y: panelY + 8,
+			Y: panelY + 5,
 			W: int32(titleWidth),
 			H: int32(titleHeight),
 		}
@@ -961,14 +962,13 @@ func renderSettingsDisplay(
 
 		// Draw colored dot/rectangle for the parameter
 		renderer.SetDrawColor(color.R, color.G, color.B, color.A)
-		dotRect := sdl.Rect{X: panelX + 10, Y: y + 4, W: dotSize, H: dotSize}
+		dotRect := sdl.Rect{X: panelX + 10, Y: y + int32((fontSize-int(dotSize))/2+1), W: dotSize, H: dotSize}
 		renderer.FillRect(&dotRect)
 
-		// Draw text label using proper font rendering
 		labelTexture, labelWidth, labelHeight, err := renderText(
 			renderer,
 			label,
-			sdl.Color{R: 200, G: 200, B: 200, A: 255},
+			sdl.Color{R: 190, G: 190, B: 190, A: 255},
 			fontSize,
 		)
 		if err == nil {
@@ -1004,6 +1004,8 @@ func renderSettingsDisplay(
 			valueWidth = int32(math.Min(150, math.Max(10, value*100.0)))
 		case "Mouse Force Radius":
 			valueWidth = int32(math.Min(150, math.Max(10, value*100.0)))
+		case "Grid Cell Size":
+			valueWidth = int32(math.Min(150, math.Max(10, value*100.0)))
 		default:
 			valueWidth = int32(math.Min(150, math.Max(10, value*100.0)))
 		}
@@ -1024,10 +1026,10 @@ func renderSettingsDisplay(
 
 		// Draw numerical value as proper text
 		valStr := fmt.Sprintf(format, value)
-		valueTexture, valueWidth, valueHeight, err := renderText(
+		valueTexture, valueWidthText, valueHeightText, err := renderText(
 			renderer,
 			valStr,
-			sdl.Color{R: 180, G: 180, B: 180, A: 255},
+			sdl.Color{R: 170, G: 170, B: 170, A: 255},
 			fontSize-1,
 		)
 		if err == nil {
@@ -1036,8 +1038,8 @@ func renderSettingsDisplay(
 			valueRect := &sdl.Rect{
 				X: barX + barRect.W + 5,
 				Y: y,
-				W: int32(valueWidth),
-				H: int32(valueHeight),
+				W: int32(valueWidthText),
+				H: int32(valueHeightText),
 			}
 			renderer.Copy(valueTexture, nil, valueRect)
 		}
@@ -1052,31 +1054,32 @@ func renderSettingsDisplay(
 	drawParamLine(5, "Radius", sdl.Color{R: 0, G: 200, B: 200, A: 255}, settings.InteractionRadius, "%.1f")
 	drawParamLine(6, "Mouse Force", sdl.Color{R: 255, G: 100, B: 255, A: 255}, settings.MouseForce, "%.0f")
 	drawParamLine(7, "Mouse Force Radius", sdl.Color{R: 255, G: 100, B: 255, A: 255}, settings.MouseForceRadius, "%.1f")
-	drawParamLine(8, "Particles", sdl.Color{R: 255, G: 100, B: 255, A: 255}, float64(settings.ParticleCount), "%d")
+	drawParamLine(8, "Grid Cell Size", sdl.Color{R: 255, G: 100, B: 255, A: 255}, settings.GridCellSize, "%.1f")
+	drawParamLine(9, "Particles", sdl.Color{R: 255, G: 100, B: 255, A: 255}, float64(settings.ParticleCount), "%d")
 
 	// Add key help text
-	renderer.SetDrawColor(200, 200, 200, 255)
-	helpRect := sdl.Rect{X: panelX + 10, Y: panelY + panelHeight - 25, W: panelWidth - 20, H: 1}
+	renderer.SetDrawColor(180, 180, 180, 255)
+	helpRect := sdl.Rect{X: panelX + 10, Y: panelY + panelHeight - 20, W: panelWidth - 20, H: 1}
 	renderer.FillRect(&helpRect)
 
 	// Add keyboard controls help text
-	helpText := "D: Toggle Debug | Space: Pause"
+	helpText := "D: Debug | Space: Pause"
 	helpTexture, helpWidth, helpHeight, err := renderText(
 		renderer,
 		helpText,
-		sdl.Color{R: 180, G: 180, B: 180, A: 255},
-		12,
+		sdl.Color{R: 160, G: 160, B: 160, A: 255},
+		fontSize-2,
 	)
 	if err == nil {
 		defer helpTexture.Destroy()
 
-		helpTextRect := &sdl.Rect{
+		textRect := &sdl.Rect{
 			X: panelX + (panelWidth-int32(helpWidth))/2,
-			Y: panelY + panelHeight - 20,
+			Y: panelY + panelHeight - 15,
 			W: int32(helpWidth),
 			H: int32(helpHeight),
 		}
-		renderer.Copy(helpTexture, nil, helpTextRect)
+		renderer.Copy(helpTexture, nil, textRect)
 	}
 
 	// Restore renderer state

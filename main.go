@@ -181,7 +181,8 @@ func RunSimulation(
 				InteractionRadius: fluidSim.InteractionRadius,
 				ParticleCount:     len(fluidSim.Particles),
 				MouseForce:        currentMouseForce,
-				MouseForceRadius:  currentMouseForceRadius, // Pass to viz settings
+				MouseForceRadius:  currentMouseForceRadius,
+				GridCellSize:      fluidSim.Grid.CellSize,
 			}
 			viz.RenderFrame(renderer, fluidSim.Particles, fluidSim.Domain, windowWidth, windowHeight,
 				particleVisRadius, meanPressure, stdPressure, showDebug, mouseEffects, currentTime, settings)
