@@ -23,6 +23,10 @@ func Fmod(a, b float64) float64 {
 	return a - b*math.Floor(a/b)
 }
 
+// JitterFloat64 is the uniform [0,1) source used for boundary jitter. it's a
+// package var so the parity oracle can record the draws and replay them in zig.
+var JitterFloat64 = rand.Float64
+
 type BoundaryType int
 
 const (
@@ -33,7 +37,7 @@ const (
 // RandomJitter adds a small random value to prevent perfect reflections
 func RandomJitter(baseVelocity float64) float64 {
 	// Add random jitter in the range of [-RANDOMIZATION_FACTOR, RANDOMIZATION_FACTOR] * |baseVelocity|
-	return (rand.Float64()*2 - 1.0) * RANDOMIZATION_FACTOR * math.Abs(baseVelocity)
+	return (JitterFloat64()*2 - 1.0) * RANDOMIZATION_FACTOR * math.Abs(baseVelocity)
 }
 
 // HandleBoundary processes collision with domain boundaries

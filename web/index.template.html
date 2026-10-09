@@ -1,0 +1,200 @@
+<title>fluids.zig</title>
+<style>
+/* layout: full-bleed sim canvas, a slim instrument strip pinned to the bottom edge */
+:root {
+  --ink: #05070d;
+  --panel: rgba(9, 14, 28, 0.82);
+  --line: rgba(120, 170, 255, 0.18);
+  --fg: #cfe0ff;
+  --dim: #7d8fb3;
+  --accent: #55b4ff;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--fg); font-family: var(--sans); overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
+#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hud { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 16px; right: 16px; display: flex; justify-content: space-between; gap: 8px; font: 11px/1.4 var(--mono); color: var(--dim); pointer-events: none; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.hud b { color: var(--fg); font-weight: 500; }
+.dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px); background: var(--panel); border-top: 1px solid var(--line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: grid; gap: 10px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+button { font: 500 12.5px var(--sans); color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; min-height: 34px; cursor: pointer; }
+button[aria-pressed="true"] { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 16px; }
+.sliders[hidden] { display: none !important; }
+label { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font: 11px var(--mono); color: var(--dim); text-transform: lowercase; letter-spacing: 0.03em; }
+label output { color: var(--fg); font-variant-numeric: tabular-nums; }
+label input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.err { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; font: 14px var(--mono); color: var(--dim); }
+@media (prefers-reduced-motion: reduce) { .dock { backdrop-filter: none; } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<canvas id="c"></canvas>
+<div class="hud"><span><b id="n">0</b> sph · zig→wasm</span><span><b id="ms">–</b> ms/step · <b id="fps">–</b> fps</span></div>
+<div class="err" id="err" hidden></div>
+<div class="dock">
+  <div class="row">
+    <button id="pause" aria-pressed="false">pause</button>
+    <button id="grav" aria-pressed="false">gravity</button>
+    <button id="reset">reset</button>
+    <button id="orig" aria-pressed="false">1024×768</button>
+    <button id="more" aria-pressed="false">tune</button>
+  </div>
+  <div class="sliders" id="sliders" hidden></div>
+</div>
+
+<script>
+const WASM_B64 = "__WASM__";
+const $ = (id) => document.getElementById(id);
+const canvas = $("c"), ctx = canvas.getContext("2d", { alpha: false });
+
+// defaults straight from go/simulation/config.go + main.go
+const N = 1000, AREA = 1024 * 768, STEPS_PER_FRAME = 2, GRAVITY_ON = 100000;
+const state = {
+  paused: false, gravity: 0, pressure: 10, boom: 1000, boomRadius: 100,
+  original: false, domain: { x: 1024, y: 768 }, seed: (Math.random() * 2 ** 31) | 0,
+};
+let wasm, mem, palette, ripples = [];
+
+function bytes() { const s = atob(WASM_B64); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+
+const availH = () => Math.max(120, innerHeight - document.querySelector(".dock").offsetHeight);
+function fitDomain() {
+  const w = innerWidth, h = availH();
+  if (state.original) return { x: 1024, y: 768 };
+  // same area as the go default, aspect matched to the screen
+  const k = Math.sqrt(AREA / (w * h));
+  return { x: Math.round(w * k), y: Math.round(h * k) };
+}
+
+function reset() {
+  state.domain = fitDomain();
+  state.seed = (state.seed * 1103515245 + 12345) >>> 0;
+  wasm.init(N, state.domain.x, state.domain.y, state.seed);
+  for (const s of sliders) if (s.param !== undefined) wasm.setParam(s.param, s.get());
+  $("n").textContent = N;
+}
+
+// view transform: letterbox the domain into the canvas
+let view = { s: 1, ox: 0, oy: 0 };
+function resize() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+  const ah = availH() * dpr;
+  const s = Math.min(canvas.width / state.domain.x, ah / state.domain.y);
+  view = { s, ox: (canvas.width - state.domain.x * s) / 2, oy: (ah - state.domain.y * s) / 2, dpr };
+}
+
+function toSim(clientX, clientY) {
+  const px = clientX * view.dpr, py = clientY * view.dpr;
+  return { x: (px - view.ox) / view.s, y: (py - view.oy) / view.s };
+}
+
+function boom(clientX, clientY, mult) {
+  const p = toSim(clientX, clientY);
+  wasm.poke(p.x, p.y, state.boom * mult, state.boomRadius);
+  if (ripples.length < 10) ripples.push({ x: clientX * view.dpr, y: clientY * view.dpr, t: performance.now(), r: state.boomRadius * view.s });
+}
+
+const buckets = Array.from({ length: 256 }, () => []);
+function draw() {
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "rgba(120,170,255,0.12)"; ctx.lineWidth = 1;
+  ctx.strokeRect(view.ox + 0.5, view.oy + 0.5, state.domain.x * view.s - 1, state.domain.y * view.s - 1);
+  const pos = new Float32Array(mem.buffer, wasm.positionsPtr(), N * 2);
+  const col = new Uint8Array(mem.buffer, wasm.colorsPtr(), N);
+  for (const b of buckets) b.length = 0;
+  for (let i = 0; i < N; i++) buckets[col[i]].push(i);
+  // go draws a radius-2 disc in a 1200px-wide window over a 1024-wide domain
+  const r = Math.max(1.2, 2 * (1200 / 1024) * view.s * (state.original ? 1 : 1));
+  for (let c = 0; c < 256; c++) {
+    const b = buckets[c]; if (!b.length) continue;
+    ctx.fillStyle = `rgb(${palette[c * 3]},${palette[c * 3 + 1]},${palette[c * 3 + 2]})`;
+    ctx.beginPath();
+    for (const i of b) { const x = view.ox + pos[2 * i] * view.s, y = view.oy + pos[2 * i + 1] * view.s; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.2832); }
+    ctx.fill();
+  }
+  const now = performance.now();
+  ripples = ripples.filter((e) => now - e.t < 500);
+  for (const e of ripples) {
+    const k = (now - e.t) / 500;
+    ctx.strokeStyle = `rgba(50,150,255,${0.5 * (1 - k)})`; ctx.lineWidth = 2 * view.dpr;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r * k, 0, 6.2832); ctx.stroke();
+  }
+}
+
+let last = performance.now(), frames = 0, stepMs = 0;
+function frame() {
+  if (!state.paused) {
+    const t0 = performance.now();
+    wasm.step(STEPS_PER_FRAME, state.gravity, state.pressure);
+    stepMs = stepMs * 0.9 + ((performance.now() - t0) / STEPS_PER_FRAME) * 0.1;
+  }
+  draw();
+  frames++;
+  const now = performance.now();
+  if (now - last > 500) { $("fps").textContent = Math.round((frames * 1000) / (now - last)); $("ms").textContent = stepMs.toFixed(2); frames = 0; last = now; }
+  requestAnimationFrame(frame);
+}
+
+// sliders: [label, param id or setter, min, max, step, default, fmt, log?]
+const sliders = [];
+function slider(name, min, max, step, value, fmt, apply, opts = {}) {
+  const id = "s-" + name.replace(/\W+/g, "-");
+  const lab = document.createElement("label"); lab.htmlFor = id;
+  const out = document.createElement("output");
+  const inp = document.createElement("input"); inp.type = "range"; inp.id = id;
+  const toUi = (v) => (opts.log ? Math.log10(v) : v), fromUi = (u) => (opts.log ? 10 ** u : u);
+  inp.min = toUi(min); inp.max = toUi(max); inp.step = opts.log ? "any" : step; inp.value = toUi(value);
+  lab.append(name, out, inp); $("sliders").append(lab);
+  const s = { param: opts.param, get: () => +(+fromUi(+inp.value)).toFixed(6) };
+  const sync = () => { const v = s.get(); out.textContent = fmt(v); apply(v); };
+  inp.addEventListener("input", sync); sync();
+  sliders.push(s);
+}
+
+async function main() {
+  try {
+    const { instance } = await WebAssembly.instantiate(bytes(), {});
+    wasm = instance.exports; mem = wasm.memory;
+  } catch (e) {
+    $("err").hidden = false; $("err").textContent = "couldn't start the wasm module: " + e.message; return;
+  }
+  palette = new Uint8Array(mem.buffer, wasm.palettePtr(), 768).slice();
+  state.domain = fitDomain();
+  wasm.init(N, state.domain.x, state.domain.y, state.seed);
+  const P = (i) => (v) => wasm.setParam(i, v);
+  slider("pressure", 1, 50000, 1, 10, (v) => v.toFixed(v < 100 ? 1 : 0), (v) => (state.pressure = v), { log: true });
+  slider("drag", 0.01, 0.3, 0.01, 0.2, (v) => v.toFixed(2), P(0), { param: 0 });
+  slider("smoothing", 0.05, 0.4, 0.01, 0.1, (v) => v.toFixed(2), P(1), { param: 1 });
+  slider("attraction", -100000, 100000, 1000, -50000, (v) => v.toFixed(0), P(2), { param: 2 });
+  slider("radius h", 1, 50, 1, 10, (v) => v.toFixed(0), P(3), { param: 3 });
+  slider("viscosity", 0, 5, 0.05, 0.8, (v) => v.toFixed(2), P(4), { param: 4 });
+  slider("boom", 50, 2000, 50, 1000, (v) => v.toFixed(0), (v) => (state.boom = v));
+  slider("boom radius", 5, 200, 5, 100, (v) => v.toFixed(0), (v) => (state.boomRadius = v));
+  $("n").textContent = N;
+  resize();
+  requestAnimationFrame(frame);
+}
+
+const toggle = (id, key, on) => $(id).addEventListener("click", () => { const v = $(id).getAttribute("aria-pressed") !== "true"; $(id).setAttribute("aria-pressed", v); on(v); });
+toggle("pause", "paused", (v) => (state.paused = v));
+toggle("grav", "gravity", (v) => (state.gravity = v ? GRAVITY_ON : 0));
+toggle("orig", "original", (v) => { state.original = v; reset(); resize(); });
+toggle("more", "more", (v) => { $("sliders").hidden = !v; resize(); });
+$("reset").addEventListener("click", () => { reset(); resize(); });
+
+// tap = explosion (go: left click). two-finger tap = 5x (go: 'b').
+canvas.addEventListener("pointerdown", (e) => { boom(e.clientX, e.clientY, e.isPrimary ? 1 : 5); });
+canvas.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
+addEventListener("keydown", (e) => {
+  if (e.key === " ") $("pause").click();
+  else if (e.key === "g") $("grav").click();
+  else if (e.key === "r") $("reset").click();
+});
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (!state.original) reset(); resize(); }, 150); });
+main();
+</script>

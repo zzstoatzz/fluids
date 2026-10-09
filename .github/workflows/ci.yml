@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  zig:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - run: zig fmt --check src build.zig
+      - run: zig build test
+      - run: zig build wasm
+      - name: parity (bit-exact + tolerance)
+        run: |
+          (cd go && go run ./cmd/oracle -cases 500 -seed ${{ github.run_number }} -portable-pow) > /tmp/portable.json
+          zig build parity -Doptimize=ReleaseSafe -- /tmp/portable.json
+      - name: parity (stock go math.Pow)
+        run: |
+          (cd go && go run ./cmd/oracle -cases 300 -seed ${{ github.run_number }}) > /tmp/stock.json
+          zig build parity -Doptimize=ReleaseSafe -- /tmp/stock.json

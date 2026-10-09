@@ -6,6 +6,10 @@ import (
 	"math"
 )
 
+// Pow is math.Pow, as a package var so the parity oracle can swap in go's
+// portable exp/log (math.Exp is asm on amd64 and its bits depend on the cpu).
+var Pow = math.Pow
+
 // ApplyGravityForces adds gravitational force to each particle's Force vector.
 func (sim *FluidSim) ApplyGravityForces(gravity float64) {
 	parallelFor(0, len(sim.Particles), func(i int) {
@@ -101,7 +105,7 @@ func (sim *FluidSim) CalculateRepulsionForce(idx int, pressureMultiplier float64
 		dist := math.Sqrt(distSq)
 		dirX := dx / dist
 		dirY := dy / dist
-		repulsionStrength := math.Pow(densityDiff, 1.5) * 0.1 * pressureMultiplier
+		repulsionStrength := Pow(densityDiff, 1.5) * 0.1 * pressureMultiplier
 		force.X += dirX * repulsionStrength
 		force.Y += dirY * repulsionStrength
 	}
