@@ -13,7 +13,7 @@ cd go && go run ./cmd/oracle -cases 300 -seed 1 -portable-pow > /tmp/parity.json
 zig build parity -Doptimize=ReleaseSafe -- /tmp/parity.json
 ```
 
-zig 0.16. no dependencies.
+zig 0.17. no dependencies.
 
 ## rules of the road
 

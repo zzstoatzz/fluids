@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(parity);
     const run_parity = b.addRunArtifact(parity);
-    if (b.args) |args| run_parity.addArgs(args);
+    run_parity.addPassthruArgs();
     b.step("parity", "compare against go oracle output (pass the json path)").dependOn(&run_parity.step);
 
     // bench
@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_bench = b.addRunArtifact(bench);
-    if (b.args) |args| run_bench.addArgs(args);
+    run_bench.addPassthruArgs();
     b.step("bench", "time steps natively").dependOn(&run_bench.step);
 
     // wasm

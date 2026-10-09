@@ -6,7 +6,7 @@ it's a port of the original go + sdl version, which still lives in [`go/`](go/) 
 
 ## run it
 
-needs zig 0.16.
+needs zig 0.17.
 
 ```console
 zig build test            # unit tests
